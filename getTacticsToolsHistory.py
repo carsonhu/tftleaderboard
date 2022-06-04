@@ -5,11 +5,11 @@ import requests
 import time
 import json
 import os
-from consts import MY_REGION
+from consts import MY_REGION, DATA_DIR
 
 # list of all masters+ players
 MASTERS_LIST = "masterList{}.txt".format(MY_REGION)
-DATA_DIR = "data{}/".format(MY_REGION)
+# DATA_DIR = "data{}/".format(MY_REGION)
 
 def getMastersPlayersList(filename):
     with open(filename, encoding='utf-8') as f:

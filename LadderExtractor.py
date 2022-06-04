@@ -13,7 +13,7 @@ import xlsxwriter
 import csv
 from collections import Counter
 from datetime import datetime, timedelta
-from consts import DATA_DIR, START_DATE, END_DATE
+from consts import DATA_DIR, START_DATE, END_DATE, OUTPUT_DATA
 class LadderExtractor(object):
     def filterRankList(self, sortedRankDict, topThreshold):
         # key: date
