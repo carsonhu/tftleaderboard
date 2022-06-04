@@ -5,11 +5,11 @@ import requests
 import time
 import json
 import os
+from consts import MY_REGION
 
 # list of all masters+ players
-MASTERS_LIST = "masterList.txt"
-DATA_DIR = "data/"
-
+MASTERS_LIST = "masterList{}.txt".format(MY_REGION)
+DATA_DIR = "data{}/".format(MY_REGION)
 
 def getMastersPlayersList(filename):
     with open(filename, encoding='utf-8') as f:
@@ -17,7 +17,7 @@ def getMastersPlayersList(filename):
 
 def requestFromTacticsTools(name):
     # Get a Player's profile from tactics.tools API
-    api_url = "https://legendsapi.com/player-stats-cached-all/na1/{}/65/0".format(name)
+    api_url = "https://legendsapi.com/player-stats-cached-all/euw1/{}/65/0".format(name)
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/72.0.3626.119 Safari/537.36"}
 
     retries = 0
@@ -28,12 +28,20 @@ def requestFromTacticsTools(name):
             success = True
         except requests.exceptions.ConnectionError as errc:
             retries += 1
+            time.sleep(.5)
             print(retries)
     return response.json()
 
+def create_counter_csv(counter, textfile):
+    with open(textfile, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        for key, count in counter.items():
+            writer.writerow([key, count])
+
 if __name__ == "__main__":
     masters = getMastersPlayersList(MASTERS_LIST)
-    print(masters)
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
     for i in range(len(masters)):
         print(masters[i])
 

@@ -10,6 +10,7 @@ import os
 import PlayerExtractor
 import numpy as np
 import xlsxwriter
+import csv
 from collections import Counter
 from datetime import datetime, timedelta
 from consts import DATA_DIR, START_DATE, END_DATE
@@ -63,7 +64,37 @@ class LadderExtractor(object):
         topPlayers = self.filterRankList(rankDict, topThreshold)
         return topPlayers
 
-    def createCSV(self, csv_file, topList, sortedList):
+    def getKingOfLeague(self, interval, league):
+        fullRankList = self.getFullRankList(interval)
+
+        keys = list(list(fullRankList.values())[0].keys())
+
+        kingCounter = Counter()
+        for key in keys:
+            # for each date, find the king
+            #print([fullRankList[name][key][0] for name in fullRankList])
+            leaguePlayers = [(name, fullRankList[name][key][1]) for name in fullRankList.keys() if fullRankList[name][key][0] == league]
+            if len(leaguePlayers) > 0:
+                kingCounter[max(leaguePlayers, key = lambda item: item[1])[0]] += interval.total_seconds() / (3600*24)
+        return kingCounter
+
+    def getGatekeeperOfLeague(self, interval):
+        fullRankList = self.getFullRankList(interval)
+        gatekeeperCounter = {}
+        for name, dateDict in fullRankList.items():
+            if name not in gatekeeperCounter:
+                gatekeeperCounter[name] = [0,0]
+            leagues = [lp[0] for lp in dateDict.values()]
+            for i in range(len(leagues) - 1):
+                if leagues[i] == "CHALLENGER I" and leagues[i+1] == "GRANDMASTER I":
+                    gatekeeperCounter[name][0] += 1    
+                elif leagues[i] == "GRANDMASTER I" and leagues[i+1] == "MASTER I":
+                    gatekeeperCounter[name][1] += 1
+        return gatekeeperCounter
+
+
+
+    def createCSV(self, csv_file, topList, sortedList, top_threshold):
         #topList: key Name, value: (Date, (league, LP))
         #csvfile: 1 column for each date
         keys = list(list(topList.values())[0].keys())
@@ -74,7 +105,6 @@ class LadderExtractor(object):
         # datetime (NOTE: ASSUMES ALL DATES ARE EQUALLY SPACED)
         # want to convert this into terms of days
         dt = (keys[1] - keys[0]).total_seconds() / (3600 * 24)
-        print(dt)
         workbook = xlsxwriter.Workbook('lp_history.xlsx')
         worksheet = workbook.add_worksheet('LP')
         worksheet1st = workbook.add_worksheet('First')
@@ -85,7 +115,7 @@ class LadderExtractor(object):
         worksheet1st.freeze_panes(1, 0)
         index = 0
 
-        topPlayers = self.getTopPlayerDurationDict(sortedList)
+        topPlayers = self.getTopPlayerDurationDict(sortedList, top_threshold)
 
         for name, val in topList.items():
             new_entry = []
@@ -97,7 +127,7 @@ class LadderExtractor(object):
             new_entry.append(player_extractor.profilePic())
 
             new_entry2 = new_entry.copy()
-            new_entry2 += list(np.cumsum([(topPlayers[key] == name) * dt for key in keys]))
+            new_entry2 += list(np.cumsum([(name in topPlayers[key]) * dt for key in keys]))
             new_entry += [v[1] for v in val.values()]
             worksheet.write_row(index+1, 0, new_entry)
             worksheet1st.write_row(index+1, 0, new_entry2)
@@ -105,38 +135,74 @@ class LadderExtractor(object):
         workbook.close()
         return 0
 
-    def getTopPlayerDurationDict(self, sortedList):
+    # def getTopPlayerDurationDict(self, sortedList):
+    #     # we just want to get top player duration for each
+    #     # this is dict tho
+    #     topDictionary = {}
+    #     for key in sortedList:
+    #         if len(sortedList[key]) > 0:
+    #             if len(sortedList[key]) > 1 and sortedList[key][-1][1][1] == sortedList[key][-2][1][1]:
+    #                 print(sortedList[key][-1], sortedList[key][-2])
+    #             topPlayer = sortedList[key][-1]
+    #             topDictionary[key] = topPlayer[0]
+    #             #topDictionary[topPlayer[0]] += 1/48 # 30 minutes
+    #         else:
+    #             topDictionary[key] = 0
+    #     return topDictionary
+
+    def getTopPlayerDurationDict(self, sortedList, top_threshold):
         # we just want to get top player duration for each
         # this is dict tho
         topDictionary = {}
         for key in sortedList:
+            if key not in topDictionary:
+                topDictionary[key] = []
             if len(sortedList[key]) > 0:
-                topPlayer = sortedList[key][-1]
-                topDictionary[key] = topPlayer[0]
-                #topDictionary[topPlayer[0]] += 1/48 # 30 minutes
-            else:
-                topDictionary[key] = 0
+                for i in range(top_threshold):
+                    if len(sortedList[key]) >= i + 1:
+                        topPlayer = sortedList[key][-i-1]
+                        topDictionary[key].append(topPlayer[0])
         return topDictionary
 
-    def getTopPlayerDuration(self, sortedList):
+    def getTopPlayerDuration(self, interval, sortedList):
         # we just want to get top player duration for each
         topCounter = Counter()        
         for key in sortedList:
             if len(sortedList[key]) > 0:
                 topPlayer = sortedList[key][-1]
-                topCounter[topPlayer[0]] += 1/96 # 30 minutes
+                topCounter[topPlayer[0]] += interval.total_seconds() / (3600 * 24) # 30 minutes
         return topCounter
-            
+    
+    def getTopPlayerDurations(self, interval, sortedList, top_threshold):
+        # we just want to get top player duration for each
+        topCounter = Counter()        
+        for key in sortedList:
+            if len(sortedList[key]) > 0:
+                for i in range(top_threshold):
+                    if len(sortedList[key]) >= i + 1:
+                        topPlayer = sortedList[key][-i-1]
+                        topCounter[topPlayer[0]] += interval.total_seconds() / (3600 * 24) # 30 minutes
+        return topCounter
+
+def create_counter_csv(counter, textfile):
+    with open(textfile, 'w', newline='', encoding='utf-8') as csvfile:
+        writer = csv.writer(csvfile)
+        for key, count in counter.items():
+            writer.writerow([key, count])
+
+
 if __name__ == "__main__":
     ladderExtractor = LadderExtractor()
-    potentialTop10s = ladderExtractor.getTopPlayers(timedelta(hours=24), 30)
+    potentialTop10s = ladderExtractor.getTopPlayers(timedelta(hours=12), 50)
     #print(potentialTop10s)
     # after this you want to get the full rank list (interval: 30 mins) for these players
-    top10FullRankList = ladderExtractor.getFullRankList(timedelta(minutes=30), potentialTop10s)
+    interval = timedelta(minutes = 30)
+    top10FullRankList = ladderExtractor.getFullRankList(interval, potentialTop10s)
     sortedList = ladderExtractor.sortFullRankList(top10FullRankList)
-    #ladderExtractor.createCSV("a", top10FullRankList, sortedList)
+    ladderExtractor.createCSV("a", top10FullRankList, sortedList, 10)
 
     # getting top player duration    
-    counter = ladderExtractor.getTopPlayerDuration(sortedList)
-    with open("counter.txt", mode='w', encoding='utf-8') as f:
-        print(counter, file=f)
+    counter = ladderExtractor.getTopPlayerDurations(interval, sortedList, 10)
+    create_counter_csv(counter, "top10list.csv")
+    #with open("counter.txt", mode='w', encoding='utf-8') as f:
+    #    print(counter, file=f)

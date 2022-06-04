@@ -14,11 +14,11 @@ Attributes:
 from riotwatcher import TftWatcher, ApiError
 
 # Replace with your riot games API Key
-api_key = '---'
+api_key = 'RGAPI-95a56a4e-8b09-4354-a0c0-15190ecfe02a'
 
 tft_watcher = TftWatcher(api_key)
 
-my_region = 'na1'
+my_region = 'euw1'
 
 masters = tft_watcher.league.master(my_region)
 gms = tft_watcher.league.grandmaster(my_region)
@@ -29,8 +29,8 @@ challs = tft_watcher.league.challenger(my_region)
 # queue is RANKED_TFT
 
 
-filename = 'masterList.txt'
-f = open("masterList.txt",'w+', encoding='utf-8')
+filename = 'masterList{}.txt'.format(my_region)
+f = open(filename,'w+', encoding='utf-8')
 for entry in [*masters['entries'], *gms['entries'], *challs['entries']]:
     print(entry['summonerName'], file=f)
     # save Master list
